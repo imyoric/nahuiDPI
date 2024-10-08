@@ -212,7 +212,7 @@ func main() {
 
 	//Start server
 	log.Println("nahuiDPI proxy started at 0.0.0.0:" + strconv.Itoa(*port))
-	log.Println("Please setting http proxy in system")
+	log.Println("Please setting https proxy in system")
 	ln, err := net.Listen("tcp", ":"+strconv.Itoa(*port))
 	if err != nil {
 		log.Fatal(err)
