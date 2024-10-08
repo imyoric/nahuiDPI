@@ -1,4 +1,5 @@
 # How to use
+PLEASE NOTE - It does not yet know how to automatically configure itself, so you need to manually configure the https proxy in your system settings
 - Download file for your platform
 - Start in terminal/command line
 - Setting https `Only https, http cooming soon.` proxy in your system settings
