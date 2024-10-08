@@ -3,7 +3,6 @@
 - Start in terminal/command line
 - Setting https `Only https, http cooming soon.` proxy in your system settings
 
-# Commands
 ```
 Usage of ./nahuiDPI:
   -banlist
