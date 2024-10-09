@@ -30,6 +30,16 @@ func Delete(key string) {
 }
 
 func GetPreferredIP(dnsServer string, domain string) (net.IP, error) {
+	ip := net.ParseIP(domain).To4()
+
+	if ip.To16() != nil {
+		return ip, nil
+	}
+
+	if ip.To4() != nil {
+		return ip, nil
+	}
+
 	r, e := Get(domain)
 	if e {
 		return r, nil

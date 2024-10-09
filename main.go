@@ -2,73 +2,43 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
-	"net/http"
 	"os"
-	"strconv"
 	"strings"
+	"time"
 )
 
-func handleConnection(conn net.Conn) {
-	defer conn.Close()
-
-	req, err := http.ReadRequest(bufio.NewReader(conn))
-	if err != nil {
-		log.Println("Error reading request:", err)
-		return
-	}
-
-	// Обработка HTTPS
-	if req.Method == http.MethodConnect {
-		handleConnect(req, conn)
-	} else {
-		conn.Close()
-		//handleHTTPRequest(req, conn)
-	}
+var BanList = StringList{
+	items: []string{}, // Инициализация среза строк
 }
 
-func handleConnect(req *http.Request, conn net.Conn) {
-	host := req.URL.Hostname()
-
-	ipOfRes, err := GetPreferredIP(DNSServer+":53", host)
-	if err != nil {
-		log.Println("Error resolving IP:", err)
-		return
-	}
-
-	port, _ := strconv.Atoi(req.URL.Port())
-
-	// Устанавливаем соединение с целевым сервером
-	targetConn, err := net.DialTCP("tcp", nil, &net.TCPAddr{IP: ipOfRes, Port: port})
-	if err != nil {
-		log.Println("Error connect to target:", err)
-		conn.Close()
-		return
-	}
-
+func TidyConnect(conn net.Conn, targetConn net.Conn, logStr string, host string) {
 	var isUsingNahuiDpi = !isUsingBanList
-
 	if isUsingBanList && BanList.Contains(host) {
 		isUsingNahuiDpi = true
 	}
 
 	//Verbose Log
 	if isVerbose {
-		fmt.Println("Connect -> "+host+" ("+ipOfRes.String()+") nahuidpi? =>", isUsingNahuiDpi)
+		log.Println(logStr, isUsingNahuiDpi)
 	}
 	//VLog END
 
 	if isUsingNahuiDpi {
 		go func() {
 			var o = uploadStartPacketSize
-			buffer := make([]byte, o)
+			var buffer []byte
+
 			for {
 				if o < uploadPacketSizeLimit {
-					o++
+					o += 1
+					buffer = make([]byte, o)
 				}
 
 				n, err := conn.Read(buffer)
@@ -81,6 +51,18 @@ func handleConnect(req *http.Request, conn net.Conn) {
 					break
 				}
 
+				if o%128 == 0 && o != uploadPacketSizeLimit {
+					time.Sleep(time.Duration(random(12, 40)) * time.Millisecond)
+				}
+
+				//Ssssssl error
+				//if len(buffer) >= len(host) {
+				//	SearchAndUnTidyHost(buffer, host)
+				//}
+				//
+				////fmt.Println(cap(buffer), len(host), o)
+				//SearchAndUnTidyHost(buffer, "http/1.1")
+
 				_, err = targetConn.Write(buffer[:n])
 				if err != nil {
 					break
@@ -88,13 +70,12 @@ func handleConnect(req *http.Request, conn net.Conn) {
 			}
 		}()
 
-		conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
-
 		var o = downloadStartPacketSize
 		buffer := make([]byte, o)
 		for {
 			if o < downloadPacketSizeLimit {
 				o++
+				buffer = make([]byte, o)
 			}
 
 			n, err := targetConn.Read(buffer)
@@ -118,70 +99,60 @@ func handleConnect(req *http.Request, conn net.Conn) {
 	}
 
 	go io.Copy(targetConn, conn)
-
 	defer targetConn.Close()
-	conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
-
 	io.Copy(conn, targetConn)
 }
 
-func handleHTTPRequest(req *http.Request, conn net.Conn) {
-	client := &http.Client{}
+func SearchAndUnTidyHost(origin []byte, host string) []byte {
+	hostBytes := []byte(host)
+	index := bytes.Index(origin, hostBytes)
 
-	// Установка URI и Host
-	req.RequestURI = ""
-	req.Host = req.URL.Host
+	toReplace := []byte(strings.ToUpper(host))
 
-	// Выполнение запроса
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Println("Error forwarding request:", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Копирование заголовков ответа
-	for key, values := range resp.Header {
-		for _, value := range values {
-			conn.Write([]byte(key + ": " + value + "\r\n"))
+	if index != -1 {
+		for i := 0; i < len(hostBytes); i++ {
+			origin[index+i] = toReplace[i]
 		}
 	}
-	conn.Write([]byte("\r\n")) // Конец заголовков
 
-	// Копирование тела ответа
-	io.Copy(conn, resp.Body)
+	return origin
 }
 
-var BanList = StringList{
-	items: []string{}, // Инициализация среза строк
+func random(min int, max int) int {
+	return rand.Intn(max) + min
 }
 
 var isVerbose = false
 
 var isUsingBanList = false
 var uploadStartPacketSize = 1
-var uploadPacketSizeLimit = 4096
+var uploadPacketSizeLimit = 1024
 
 var downloadStartPacketSize = 1
-var downloadPacketSizeLimit = 4096
+var downloadPacketSizeLimit = 1024
+
+var server_port = 8080
 
 var DNSServer = "8.8.8.8"
 
 func main() {
-	port := flag.Int("port", 8080, "Server port")
+	p := flag.Int("port", 8080, "Server port")
 	isB := flag.Bool("banlist", false, "Using ban list?")
 	v := flag.Bool("v", false, "Verbose?")
+	socks := flag.Bool("socks", false, "Using socks proxy?")
 	//s := flag.Bool("system-proxy", false, "System Proxy?")
 
 	u1 := flag.Int("upload_startpacketsize", 1, "Upload start packet size")
-	u2 := flag.Int("upload_packetsizelimit", 4096, "Upload packet size limit")
+	u2 := flag.Int("upload_packetsizelimit", 1024, "Upload packet size limit")
 
 	d1 := flag.Int("download_startpacketsize", 64, "Download start packet size")
-	d2 := flag.Int("download_packetsizelimit", 4096, "Download packet size limit")
+	d2 := flag.Int("download_packetsizelimit", 1024, "Download packet size limit")
 
 	dns := flag.String("dns", "8.8.8.8", "Select DNS Server")
 
 	flag.Parse()
+
+	rand.Seed(time.Now().UnixNano())
 
 	uploadStartPacketSize = *u1
 	uploadPacketSizeLimit = *u2
@@ -191,6 +162,8 @@ func main() {
 
 	isVerbose = *v
 	DNSServer = *dns
+
+	server_port = *p
 
 	if *isB {
 		isUsingBanList = true
@@ -210,22 +183,9 @@ func main() {
 		file.Close()
 	}
 
-	//Start server
-	log.Println("nahuiDPI proxy started at 0.0.0.0:" + strconv.Itoa(*port))
-	log.Println("Please setting https proxy in system")
-	ln, err := net.Listen("tcp", ":"+strconv.Itoa(*port))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer ln.Close()
-
-	//Working server
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Println("Error accepting connection:", err)
-			continue
-		}
-		go handleConnection(conn)
+	if *socks {
+		socksProxy(server_port)
+	} else {
+		httpProxy(server_port)
 	}
 }
