@@ -11,20 +11,22 @@ PLEASE NOTE - It does not yet know how to automatically configure itself, so you
 - Настрой https `Только https, http будет потом`  прокси в настройках системы
 
 ```
-Usage of ./nahuiDPI:
+Usage of ./nahuidpi:
   -banlist
-        Using ban list?
+    	Using ban list?
   -dns string
-        Select DNS Server (default "8.8.8.8")
+    	Select DNS Server (default "8.8.8.8")
   -download_packetsizelimit int
-        Download packet size limit (default 4096)
+    	Download packet size limit (default 1024)
   -download_startpacketsize int
-        Download start packet size (default 64)
+    	Download start packet size (default 64)
   -port int
-        Server port (default 8080)
+    	Server port (default 8080)
+  -socks
+    	Using socks proxy?
   -upload_packetsizelimit int
-        Upload packet size limit (default 4096)
+    	Upload packet size limit (default 1024)
   -upload_startpacketsize int
-        Upload start packet size (default 1)
-  -v    Verbose?
+    	Upload start packet size (default 1)
+  -v	Verbose?
 ```
